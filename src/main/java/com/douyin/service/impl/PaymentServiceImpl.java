@@ -115,10 +115,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new RuntimeException("无权操作他人订单");
         }
 
-        // 2. 校验订单状态
-        if (!"paid".equalsIgnoreCase(order.getStatus())) {
-            throw new RuntimeException("仅支持取消已支付订单");
-        }
+        // // 2. 校验订单状态
+        // if (!"paid".equalsIgnoreCase(order.getStatus())) {
+        //     throw new RuntimeException("仅支持取消已支付订单");
+        // }
 
         // 3. 回退库存和更新状态
         List<OrderItem> items = orderItemMapper.selectItemsByOrderId(orderId);
