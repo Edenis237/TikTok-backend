@@ -1,3 +1,6 @@
+# Nacos相关文档https://nacos.io/docs/next/quickstart/quick-start/
+使用单机模式startup.cmd -m standalone
+
 # 相关数据库表的搭建
 ## users表（用户表）
 ```sql
