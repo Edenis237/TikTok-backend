@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抖音商城 - 登录</title>
+    <style>
+        /* 抖音风格CSS */
+        :root {
+            --neon-blue: #00f2fe;
+            --neon-pink: #fe00f2;
+            --bg-black: #000000;
+            --text-white: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg-black);
+            font-family: 'Arial', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(45deg, #0f0f0f 0%, #000 100%);
+        }
+
+        .login-container {
+            background: rgba(15, 15, 15, 0.9);
+            padding: 2.5rem;
+            border-radius: 15px;
+            box-shadow: 0 0 20px var(--neon-blue);
+            width: 350px;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo img {
+            width: 120px;
+            filter: drop-shadow(0 0 8px var(--neon-blue));
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--neon-blue);
+            border-radius: 5px;
+            color: var(--text-white);
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--neon-pink);
+            box-shadow: 0 0 10px var(--neon-pink);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(45deg, var(--neon-blue), var(--neon-pink));
+            border: none;
+            border-radius: 5px;
+            color: var(--text-white);
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .links {
+            margin-top: 1.5rem;
+            text-align: center;
+            color: var(--text-white);
+        }
+
+        .links a {
+            color: var(--neon-blue);
+            text-decoration: none;
+            margin: 0 10px;
+            position: relative;
+        }
+
+        .links a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--neon-pink);
+            transition: width 0.3s;
+        }
+
+        .links a:hover::after {
+            width: 100%;
+        }
+
+        .error-message {
+            color: #ff4444;
+            text-align: center;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="login-container">
+    <div class="logo">
+        <img src="https://sf3-cdn-tos.douyinstatic.com/obj/eden-cn/dhoieh7nupvuhp/%E6%8A%96%E9%9F%B3%E5%95%86%E5%9F%8E_logo.png" alt="抖音商城">
+    </div>
+
+    <div class="error-message" id="errorMsg"></div>
+
+    <!-- 登录表单 -->
+    <form id="loginForm">
+        <div class="form-group">
+            <input type="text" id="username" placeholder="用户名" required>
+        </div>
+        <div class="form-group">
+            <input type="password" id="password" placeholder="密码" required>
+        </div>
+        <button type="submit">登 录</button>
+    </form>
+
+    <!-- 注册表单 -->
+    <form id="registerForm" style="display: none;">
+        <div class="form-group">
+            <input type="text" id="regUsername" placeholder="用户名" required>
+        </div>
+        <div class="form-group">
+            <input type="password" id="regPassword" placeholder="密码" required>
+        </div>
+        <div class="form-group">
+            <input type="password" id="confirmPassword" placeholder="确认密码" required>
+        </div>
+        <button type="button" onclick="handleRegister()">注 册</button>
+    </form>
+
+    <div class="links">
+        <a href="#" onclick="toggleForm('register')" id="registerLink">立即注册</a>
+        <a href="#" onclick="toggleForm('login')" id="loginLink" style="display: none;">返回登录</a>
+        <a href="#">忘记密码？</a>
+    </div>
+</div>
+
+<script>
+    // 表单切换逻辑
+    function toggleForm(type) {
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+        const registerLink = document.getElementById('registerLink');
+        const loginLink = document.getElementById('loginLink');
+
+        loginForm.style.display = type === 'register' ? 'none' : 'block';
+        registerForm.style.display = type === 'register' ? 'block' : 'none';
+        registerLink.style.display = type === 'register' ? 'none' : 'inline';
+        loginLink.style.display = type === 'register' ? 'inline' : 'none';
+    }
+
+    // 处理登录
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        try {
+            const response = await fetch('http://localhost:8080/users/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || '登录失败');
+            }
+
+            const { token } = await response.json();
+
+            // 存储 Token 并跳转到商品页面
+            document.cookie = `satoken=${token};path=/;max-age=7200`;  // 设置 Cookie 存储 token
+            window.location.href = '/index.html';
+
+        } catch (error) {
+            showError(error.message || '登录失败');
+        }
+    });
+
+    // 处理注册
+    async function handleRegister() {
+        const username = document.getElementById('regUsername').value.trim();
+        const password = document.getElementById('regPassword').value.trim();
+        const confirmPassword = document.getElementById('confirmPassword').value.trim();
+
+        if (password !== confirmPassword) {
+            showError('两次密码输入不一致');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8080/users/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || '注册失败');
+            }
+
+            alert('注册成功，请登录');
+            toggleForm('login');
+
+        } catch (error) {
+            showError(error.message || '网络请求失败');
+        }
+    }
+
+    // 显示错误信息
+    function showError(message) {
+        const errorDiv = document.getElementById('errorMsg');
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+        setTimeout(() => errorDiv.style.display = 'none', 3000);
+    }
+</script>
+</body>
+</html>

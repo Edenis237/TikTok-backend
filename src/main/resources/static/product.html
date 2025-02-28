@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            margin: 5px;
+        }
+        .form-container {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .form-container input {
+            margin: 5px;
+            padding: 8px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+<h1>商品管理</h1>
+
+<!-- 商品列表 -->
+<h2>商品列表</h2>
+<table id="productTable">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>名称</th>
+        <th>描述</th>
+        <th>价格</th>
+        <th>库存</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    <!-- 商品数据将通过 JavaScript 动态填充 -->
+    </tbody>
+</table>
+
+<!-- 创建商品表单 -->
+<div class="form-container">
+    <h2>创建商品</h2>
+    <input type="text" id="createName" placeholder="商品名称">
+    <input type="text" id="createDescription" placeholder="商品描述">
+    <input type="number" id="createPrice" placeholder="价格">
+    <input type="number" id="createStock" placeholder="库存">
+    <button onclick="createProduct()">创建</button>
+</div>
+
+<!-- 修改商品表单 -->
+<div class="form-container">
+    <h2>修改商品</h2>
+    <input type="number" id="updateId" placeholder="商品ID">
+    <input type="text" id="updateName" placeholder="新名称">
+    <input type="text" id="updateDescription" placeholder="新描述">
+    <input type="number" id="updatePrice" placeholder="新价格">
+    <input type="number" id="updateStock" placeholder="新库存">
+    <button onclick="updateProduct()">修改</button>
+</div>
+
+<!-- 删除商品 -->
+<div class="form-container">
+    <h2>删除商品</h2>
+    <input type="number" id="deleteId" placeholder="商品ID">
+    <button onclick="deleteProduct()">删除</button>
+</div>
+
+<script>
+    // 获取商品列表
+    async function fetchProducts() {
+        try {
+            const response = await fetch('http://localhost:8080/products');
+            if (!response.ok) {
+                throw new Error('获取商品列表失败');
+            }
+            const products = await response.json();
+            renderProductTable(products);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 渲染商品表格
+    function renderProductTable(products) {
+        const tbody = document.querySelector('#productTable tbody');
+        tbody.innerHTML = '';
+        products.forEach(product => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                    <td>${product.id}</td>
+                    <td>${product.name}</td>
+                    <td>${product.description}</td>
+                    <td>${product.price}</td>
+                    <td>${product.stock}</td>
+                    <td>
+                        <button onclick="fetchProductById(${product.id})">查看</button>
+                    </td>
+                `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // 创建商品
+    async function createProduct() {
+        const name = document.getElementById('createName').value;
+        const description = document.getElementById('createDescription').value;
+        const price = parseFloat(document.getElementById('createPrice').value);
+        const stock = parseInt(document.getElementById('createStock').value);
+
+        try {
+            const response = await fetch('http://localhost:8080/products', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: name,
+                    description: description,
+                    price: price,
+                    stock: stock
+                })
+            });
+            if (!response.ok) {
+                throw new Error('创建商品失败');
+            }
+            alert('商品创建成功');
+            fetchProducts(); // 刷新商品列表
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 修改商品
+    async function updateProduct() {
+        const id = parseInt(document.getElementById('updateId').value);
+        const name = document.getElementById('updateName').value;
+        const description = document.getElementById('updateDescription').value;
+        const price = parseFloat(document.getElementById('updatePrice').value);
+        const stock = parseInt(document.getElementById('updateStock').value);
+
+        try {
+            const response = await fetch(`http://localhost:8080/products/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: name,
+                    description: description,
+                    price: price,
+                    stock: stock
+                })
+            });
+            if (!response.ok) {
+                throw new Error('修改商品失败');
+            }
+            alert('商品修改成功');
+            fetchProducts(); // 刷新商品列表
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 删除商品
+    async function deleteProduct() {
+        const id = parseInt(document.getElementById('deleteId').value);
+        try {
+            const response = await fetch(`http://localhost:8080/products/${id}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                throw new Error('删除商品失败');
+            }
+            alert('商品删除成功');
+            fetchProducts(); // 刷新商品列表
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 查询单个商品
+    async function fetchProductById(id) {
+        try {
+            const response = await fetch(`http://localhost:8080/products/${id}`);
+            if (!response.ok) {
+                throw new Error('获取商品信息失败');
+            }
+            const product = await response.json();
+            alert(`商品信息：\nID: ${product.id}\n名称: ${product.name}\n描述: ${product.description}\n价格: ${product.price}\n库存: ${product.stock}`);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    // 页面加载时获取商品列表
+    window.onload = fetchProducts;
+</script>
+</body>
+</html>

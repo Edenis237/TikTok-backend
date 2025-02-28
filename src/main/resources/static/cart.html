@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="douyin-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抖音购物车</title>
+    <style>
+        :root {
+            --primary-red: #FF005A;
+            --dark-bg: #0F0F0F;
+            --card-bg: #1A1A1A;
+            --text-white: #FFFFFF;
+        }
+
+        body {
+            background: var(--dark-bg);
+            color: var(--text-white);
+            font-family: 'PingFang SC', system-ui;
+        }
+
+        .header {
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+        }
+
+        .back-btn {
+            color: var(--text-white);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cart-container {
+            padding: 16px;
+        }
+
+        .cart-item {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: 80px 1fr auto;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .item-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .item-info h3 {
+            margin-bottom: 8px;
+        }
+
+        .remove-btn {
+            background: none;
+            border: 1px solid #666;
+            color: var(--text-white);
+            padding: 6px 12px;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .remove-btn:hover {
+            border-color: var(--primary-red);
+            color: var(--primary-red);
+        }
+
+        .checkout-bar {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            padding: 16px;
+            background: var(--card-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <a href="index.html" class="back-btn">
+        ← 返回商城
+    </a>
+    <h2>我的购物车</h2>
+</div>
+
+<div class="cart-container" id="cartItems"></div>
+
+<div class="checkout-bar">
+    <div>
+        <div>共 <span id="totalQuantity">0</span> 件</div>
+        <div>合计：¥<span id="totalAmount">0.00</span></div>
+    </div>
+    <button class="checkout-btn" onclick="handleCheckout()">立即结算</button>
+</div>
+<!-- 新增订单状态区域 -->
+<div class="order-section" id="orderSection" style="display: none;">
+    <h3>当前订单状态</h3>
+    <div class="order-status">
+        <p>订单号：<span id="currentOrderId">-</span></p>
+        <p>状态：<span id="currentOrderStatus">-</span></p>
+        <p>金额：¥<span id="currentOrderAmount">0.00</span></p>
+    </div>
+    <div class="payment-actions">
+        <button class="pay-btn" onclick="handlePayment()">立即支付</button>
+        <button class="cancel-btn" onclick="cancelPayment()">取消订单</button>
+    </div>
+</div>
+
+<script>
+    let currentOrder = null;
+    // 获取购物车数据
+    async function fetchCart() {
+        try {
+            const response = await fetch('/cart/get', {
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('获取购物车失败');
+            }
+
+            const cart = await response.json();
+            renderCart(cart);
+        } catch (error) {
+            console.error('获取购物车失败:', error);
+            alert(error.message);
+        }
+    }
+
+    async function getUserId() {
+        try {
+            const response = await fetch('/users/current-user', {
+                method: 'GET',
+                credentials: 'include' // 确保携带Cookie
+            });
+            if (!response.ok) {
+                throw new Error('用户未登录');
+            }
+            const userId = await response.json();
+            return userId;
+        } catch (error) {
+            console.error('获取用户ID失败:', error);
+            return null;
+        }
+    }
+
+    // 从cookie获取token的辅助函数
+    function getToken() {
+        return document.cookie
+            .split('; ')
+            .find(row => row.startsWith('satoken='))
+            ?.split('=')[1];
+    }
+
+    let isSubmitting = false; // 全局提交状态
+    // 修改后的结算处理
+    async function handleCheckout() {
+        if (isSubmitting) {
+            alert("请勿重复提交");
+            return;
+        }
+        try {
+            isSubmitting = true;
+            // 1. 创建订单
+            const order = await createOrder();
+
+            // 2. 结算订单（检查库存）
+            const userId = getUserId(); // 获取当前用户ID
+            const paymentResponse = await settleOrder(order.id,userId);
+
+            // 3. 显示订单信息
+            showOrderSection(paymentResponse);
+            alert("结算成功，请完成支付");
+        } catch (error) {
+            // 明确提示错误原因
+            let errorMessage = error.message;
+            if (error.message.includes("商品不存在")) {
+                errorMessage = "商品已下架，请移除后重新结算";
+            } else if (error.message.includes("库存不足")) {
+                errorMessage = "部分商品库存不足，请修改数量";
+            }
+            alert(`结算失败: ${errorMessage}`);
+            location.reload(); // 刷新购物车
+        }
+    }
+
+    // 创建订单
+    async function createOrder() {
+        const cart = await fetchCartData();
+        const request = {
+            items: cart.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity
+            }))
+        };
+
+        const response = await fetch('/orders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getToken()}`
+            },
+            body: JSON.stringify(request)
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+
+        return await response.json();
+    }
+
+    // 结算订单
+    async function settleOrder(orderId) {
+        const response = await fetch(`/payment/settle/${orderId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+
+        return await response.json();
+    }
+
+    // 显示订单信息
+    function showOrderSection(paymentResponse) {
+        currentOrder = paymentResponse;
+        document.getElementById('orderSection').style.display = 'block';
+        document.getElementById('currentOrderId').textContent = paymentResponse.orderId;
+        document.getElementById('currentOrderStatus').textContent = paymentResponse.status;
+        document.getElementById('currentOrderAmount').textContent = paymentResponse.totalAmount.toFixed(2);
+    }
+
+    // 处理支付
+    async function handlePayment() {
+        try {
+            const response = await fetch(`/payment/pay/${currentOrder.orderId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            const result = await response.json();
+            updateOrderStatus(result);
+            alert("支付成功！");
+            location.reload(); // 刷新页面
+        } catch (error) {
+            alert(`支付失败: ${error.message}`);
+        }
+    }
+
+    // 取消订单
+    async function cancelPayment() {
+        try {
+            const response = await fetch(`/payment/cancel/${currentOrder.orderId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+
+            const result = await response.json();
+            updateOrderStatus(result);
+            alert("订单已取消");
+            location.reload(); // 刷新页面
+        } catch (error) {
+            alert(`取消失败: ${error.message}`);
+        }
+    }
+
+    // 更新订单状态显示
+    function updateOrderStatus(response) {
+        document.getElementById('currentOrderStatus').textContent = response.status;
+        currentOrder.status = response.status;
+    }
+
+    // 获取购物车数据（修改后返回结构化数据）
+    async function fetchCartData() {
+        const response = await fetch('/cart/get', {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        return await response.json();
+    }
+
+    // 初始化时获取购物车数据
+    window.onload = async () => {
+        await fetchCart();
+        // 检查是否有未完成订单
+        const orders = await fetchUserOrders();
+        const pendingOrder = orders.find(o => o.status === 'pending');
+        if (pendingOrder) {
+            showOrderSection({
+                orderId: pendingOrder.orderId,
+                totalAmount: pendingOrder.totalAmount,
+                status: pendingOrder.status
+            });
+        }
+    };
+
+    // 获取用户订单列表
+    async function fetchUserOrders() {
+        const response = await fetch('/orders/user', {
+            headers: {
+                'Authorization': `Bearer ${getToken()}`
+            }
+        });
+        return await response.json();
+    }
+
+
+    // 渲染购物车
+    function renderCart(cart) {
+        const container = document.getElementById('cartItems');
+        let total = 0;
+        let quantity = 0;
+
+        container.innerHTML = cart.items.map(item => {
+            total += item.price * item.quantity;
+            quantity += item.quantity;
+
+            return `
+                    <div class="cart-item">
+                        <img src="placeholder.jpg" class="item-image" alt="${item.productName}">
+                        <div>
+                            <h3>${item.productName}</h3>
+                            <p>¥${item.price.toFixed(2)} × ${item.quantity}</p>
+                        </div>
+                        <button class="remove-btn" onclick="removeItem(${item.productId})">
+                            移除
+                        </button>
+                    </div>
+                `;
+        }).join('');
+
+        document.getElementById('totalQuantity').textContent = quantity;
+        document.getElementById('totalAmount').textContent = total.toFixed(2);
+    }
+
+    // 移除商品
+    async function removeItem(productId) {
+        try {
+            const response = await fetch(`/cart/remove/${productId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${getToken()}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('移除失败');
+            }
+
+            alert('移除成功');
+            await fetchCart(); // 重新加载购物车
+        } catch (error) {
+            console.error('移除失败:', error);
+            alert(error.message);
+        }
+    }
+
+
+
+    // 初始化
+    window.onload = fetchCart;
+</script>
+</body>
+</html>

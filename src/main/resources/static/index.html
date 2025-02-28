@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="douyin-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抖音商城</title>
+    <style>
+        :root {
+            --primary-red: #FF005A;
+            --dark-bg: #0F0F0F;
+            --card-bg: #1A1A1A;
+            --text-white: #FFFFFF;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--dark-bg);
+            color: var(--text-white);
+            font-family: 'PingFang SC', system-ui;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 12px 16px;
+            background: var(--dark-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .cart-btn {
+            background: var(--primary-red);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 80px 16px 100px;
+        }
+
+        .product-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .product-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .product-info {
+            padding: 12px;
+        }
+
+        .product-price {
+            color: var(--primary-red);
+            font-size: 16px;
+            margin: 8px 0;
+        }
+
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .quantity-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: #333;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .add-to-cart {
+            width: 100%;
+            padding: 10px;
+            background: var(--primary-red);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
+        .login-box {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>抖音商城</h1>
+    <button class="cart-btn" onclick="checkLoginBeforeAction('cart.html')">
+        🛒 购物车
+    </button>
+</div>
+
+<div class="product-grid" id="productContainer"></div>
+
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+        <h2>请先登录</h2>
+        <button onclick="location.href='login.html'">去登录</button>
+        <button onclick="hideLoginOverlay()">稍后登录</button>
+    </div>
+</div>
+
+<script>
+    // 获取商品列表
+    async function fetchProducts() {
+        try {
+            const response = await fetch('http://localhost:8080/products');
+            const products = await response.json();
+            renderProducts(products);
+        } catch (error) {
+            console.error('获取商品失败:', error);
+        }
+    }
+
+    // 渲染商品卡片
+    function renderProducts(products) {
+        const container = document.getElementById('productContainer');
+        container.innerHTML = products.map(product => `
+                <div class="product-card">
+                    <img src="placeholder.jpg" class="product-image" alt="${product.name}">
+                    <div class="product-info">
+                        <h3>${product.name}</h3>
+                        <p class="product-price">¥${product.price.toFixed(2)}</p>
+                        <div class="quantity-control">
+                            <button class="quantity-btn" onclick="changeQuantity(${product.id}, -1)">-</button>
+                            <span id="quantity-${product.id}">1</span>
+                            <button class="quantity-btn" onclick="changeQuantity(${product.id}, 1)">+</button>
+                        </div>
+                        <button class="add-to-cart"
+                                onclick="checkLoginBeforeAction(() => addToCart(${product.id}))">
+                            加入购物车
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+    }
+
+    // 修改购买数量
+    function changeQuantity(productId, delta) {
+        const element = document.getElementById(`quantity-${productId}`);
+        let quantity = parseInt(element.textContent) + delta;
+        quantity = Math.max(1, quantity);
+        element.textContent = quantity;
+    }
+
+    // 加入购物车
+    async function addToCart(productId) {
+        const quantity = parseInt(document.getElementById(`quantity-${productId}`).textContent);
+
+        try {
+            const response = await fetch('http://localhost:8080/cart/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getToken()}`
+                },
+                body: JSON.stringify({
+                    productId: productId,
+                    quantity: quantity
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(error);
+            }
+
+            alert('添加成功');
+            document.getElementById(`quantity-${productId}`).textContent = '1';
+        } catch (error) {
+            console.error('添加失败:', error);
+            alert(error.message);
+        }
+    }
+
+    // 登录检查
+    function checkLoginBeforeAction(action) {
+        if (!getToken()) {
+            showLoginOverlay();
+        } else {
+            typeof action === 'function' ? action() : location.href = action;
+        }
+    }
+
+    // 显示登录弹窗
+    function showLoginOverlay() {
+        document.getElementById('loginOverlay').style.display = 'flex';
+    }
+
+    // 隐藏登录弹窗
+    function hideLoginOverlay() {
+        document.getElementById('loginOverlay').style.display = 'none';
+    }
+
+    // 获取Token
+    function getToken() {
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('satoken='));
+        return cookie ? cookie.split('=')[1] : null;
+    }
+
+    // 初始化
+    window.onload = fetchProducts;
+</script>
+</body>
+</html>
